@@ -64,7 +64,7 @@ jobs:
 
       - name: Debug Kubernetes context
         run: kubectl config view
-
+      #
       - name: Deploy to Kubernetes
         run: |
           kubectl apply -f myapp.yaml
