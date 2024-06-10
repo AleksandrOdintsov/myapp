@@ -2,7 +2,6 @@ kind: Service
 apiVersion: v1
 metadata:
   name: nginx-myapp-nodeport
-  namespace: diplom
   labels:
     app: testapp
 spec:
