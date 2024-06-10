@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-      - "refs/tags/*" # Добавляем событие для тегов
-  pull_request:
-    branches: ["main"]
 
 jobs:
   build:
@@ -17,13 +14,9 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Update index.html with tag name
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'push' && github.ref == 'refs/heads/main' # Запускаем для тегов и push на main
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-            TAG_NAME=${GITHUB_REF##*/}
-          else
-            TAG_NAME="latest"
-          fi
+          TAG_NAME=${GITHUB_REF##*/}
           echo "Updating index.html with tag name: $TAG_NAME"
           sed -i "s/Version .*/Version $TAG_NAME/" index.html
           cat index.html
