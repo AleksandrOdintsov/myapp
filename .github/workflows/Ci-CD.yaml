@@ -13,20 +13,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Update index.html with tag name
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Update index.html
         run: |
-          TAG_NAME=${GITHUB_REF##*/}
-          echo "Updating index.html with tag name: $TAG_NAME"
-          sed -i "s/Version .*/Version $TAG_NAME/" index.html
-          cat index.html
-          git config --global user.name 'github-actions'
-          git config --global user.email 'github-actions@github.com'
+          echo "Version: $GITHUB_SHA" > index.html
           git add index.html
-          git commit -m "Update index.html with version $TAG_NAME"
+          git commit -m "Update index.html with version: $GITHUB_SHA"
           git push origin main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
@@ -50,22 +42,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v1
+      - name: Install Helm
+        uses: azure/setup-helm@v1
         with:
-          version: "v1.21.0"
+          version: "v3.6.2" # Укажите версию Helm, если нужно
 
-      - name: Configure Kubernetes context
+      - name: Deploy with Helm
         run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
-        env:
-          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
-
-      - name: Debug Kubernetes context
-        run: kubectl config view
-
-      - name: Deploy to Kubernetes
-        run: |
-          kubectl apply -f myapp.yaml
-          kubectl apply -f svc.yaml
+          helm upgrade --install myapp ./v1.0.0 -f ./v1.0.0/values.yaml
