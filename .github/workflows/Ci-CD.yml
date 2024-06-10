@@ -1,4 +1,4 @@
-.github/workflows.github/workflowsname: CI/CD
+name: CI/CD
 
 on:
   push:
