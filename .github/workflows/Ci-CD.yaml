@@ -38,13 +38,19 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v1
         with:
-          version: "v1.21.0"
+          version: "v1.21.0" # Выберите нужную версию kubectl
 
       - name: Configure Kubernetes context
         run: |
           mkdir -p $HOME/.kube
           echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Debug Kubernetes context
+        run: kubectl config view
 
       - name: Deploy to Kubernetes
         run: |
-          kubectl apply -f myapp/k8s-deployment.yaml
+          kubectl apply -f myapp.yaml
+          kubectl apply -f svc.yaml
