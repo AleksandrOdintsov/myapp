@@ -13,39 +13,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-        with:
-          repository: AleksandrOdintsov/myapp
-          path: myapp
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v2
         with:
-          context: myapp
-          file: myapp/Dockerfile
+          context: .
+          file: ./Dockerfile
           push: true
-          tags: docker.io/aleksandrodintsov/nginx:${{ github.ref_name }}
-          secrets: |
-            github.token=${{ secrets.GITHUB_TOKEN }}
-            dockerhub_token=${{ secrets.DOCKER_PASSWORD }}
+          tags: docker.io/aleksandrodintsov/nginx:${{ github.sha }}
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v1
         with:
-          repository: AleksandrOdintsov/myapp
-          path: myapp
+          version: "v1.21.0"
+
+      - name: Configure Kubernetes context
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
 
       - name: Deploy to Kubernetes
-        uses: azure/k8s-deploy@v1.3
-        with:
-          manifests: |
-            myapp/templates/*
-          images: docker.io/aleksandrodintsov/nginx:${{ github.ref_name }}
-          values-files: myapp/values.yaml
-          kubectl-version: "latest"
-          env:
-            KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          kubectl apply -f myapp/k8s-deployment.yaml
