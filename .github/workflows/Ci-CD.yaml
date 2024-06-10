@@ -57,3 +57,6 @@ jobs:
         run: |
           kubectl apply -f myapp.yaml
           kubectl apply -f svc.yaml
+
+      - name: Update index.html with tag name
+        run: sed -i "s/Version .*/Version ${{ github.ref_name }}/g" index.html
