@@ -16,6 +16,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Update index.html with tag name
+        if: github.event_name == 'release'
+        run: |
+          TAG_NAME=${GITHUB_REF##*/}
+          echo "Updating index.html with tag name: $TAG_NAME"
+          sed -i "s/Version .*/Version $TAG_NAME/" index.html
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add index.html
+          git commit -m "Update index.html with version $TAG_NAME"
+          git push origin main
+
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
@@ -57,6 +69,3 @@ jobs:
         run: |
           kubectl apply -f myapp.yaml
           kubectl apply -f svc.yaml
-
-      - name: Update index.html with tag name
-        run: sed -i "s/Version .*/Version ${{ github.ref_name }}/g" index.html
