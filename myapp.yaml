@@ -1,0 +1,23 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: my-app
+  labels:
+    app: testapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: testapp
+  template:
+    metadata:
+      name: my-app
+      labels:
+        app: testapp
+    spec:
+      containers:
+        - name: my-testapp-nginx
+          image: docker.io/aleksandrodintsov/nginx:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
