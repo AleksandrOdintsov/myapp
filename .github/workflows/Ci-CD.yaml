@@ -2,11 +2,11 @@ name: CI/CD
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
+      - "refs/tags/*" # Добавляем событие для тегов
   pull_request:
     branches: ["main"]
-  release:
-    types: [created]
 
 jobs:
   build:
@@ -17,16 +17,23 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Update index.html with tag name
-        if: github.event_name == 'release'
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'push' && github.ref == 'refs/heads/main' # Запускаем для тегов и push на main
         run: |
-          TAG_NAME=${GITHUB_REF##*/}
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            TAG_NAME=${GITHUB_REF##*/}
+          else
+            TAG_NAME="latest"
+          fi
           echo "Updating index.html with tag name: $TAG_NAME"
           sed -i "s/Version .*/Version $TAG_NAME/" index.html
+          cat index.html
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           git add index.html
           git commit -m "Update index.html with version $TAG_NAME"
           git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
@@ -53,7 +60,7 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v1
         with:
-          version: "v1.21.0" # Выберите нужную версию kubectl
+          version: "v1.21.0"
 
       - name: Configure Kubernetes context
         run: |
@@ -64,7 +71,7 @@ jobs:
 
       - name: Debug Kubernetes context
         run: kubectl config view
-      #
+
       - name: Deploy to Kubernetes
         run: |
           kubectl apply -f myapp.yaml
