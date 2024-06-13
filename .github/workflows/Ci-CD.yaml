@@ -17,7 +17,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t myapp:${{ github.event_name == 'push' && github.ref == 'refs/heads/main' ? 'latest' : github.ref }} .
+          docker build -t myapp:${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event_name != 'create' ? 'latest' : github.ref }} .
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
@@ -28,8 +28,8 @@ jobs:
     steps:
       - name: Push Docker image
         run: |
-          docker tag myapp:${{ github.event_name == 'push' && github.ref == 'refs/heads/main' ? 'latest' : github.ref }} docker.io/aleksandrodintsov/nginx:${{ github.event_name == 'push' && github.ref == 'refs/heads/main' ? 'latest' : github.ref }}
-          docker push docker.io/aleksandrodintsov/nginx:${{ github.event_name == 'push' && github.ref == 'refs/heads/main' ? 'latest' : github.ref }}
+          docker tag myapp:${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event_name != 'create' ? 'latest' : github.ref }} docker.io/aleksandrodintsov/nginx:${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event_name != 'create' ? 'latest' : github.ref }}
+          docker push docker.io/aleksandrodintsov/nginx:${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event_name != 'create' ? 'latest' : github.ref }}
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
