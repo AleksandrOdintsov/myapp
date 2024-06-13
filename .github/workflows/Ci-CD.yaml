@@ -8,35 +8,41 @@ on:
     types: [created]
 
 jobs:
-  build_and_deploy:
+  build_and_push_docker_image:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'release'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: docker.io/aleksandrodintsov/myapp
-          tags: latest
-        if: github.event_name == 'push'
+      - name: Get commit tag
+        id: tag
+        run: echo ::set-output name=TAG::$(git tag --points-at $GITHUB_SHA)
 
-      - name: Build, tag, and push Docker image on release
-        uses: docker/build-push-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: docker.io/aleksandrodintsov/myapp
-          tags: v${{ github.event.release.tag_name }}
-        if: github.event_name == 'release'
+      - name: Build Docker image
+        run: docker build -t myapp:${{ steps.tag.outputs.TAG }} .
+      
+      - name: Tag Docker image
+        run: docker tag myapp:${{ steps.tag.outputs.TAG }} myapp:${{ steps.tag.outputs.TAG }}
+
+      - name: Push Docker image
+        run: docker push myapp:${{ steps.tag.outputs.TAG }}
+
+  update_values_and_deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Get commit tag
+        id: tag
+        run: echo ::set-output name=TAG::$(git tag --points-at $GITHUB_SHA)
 
       - name: Update tag in values.yaml
-        run: |
-          sed -i 's/tag: ".*"/tag: "v${{ github.event.release.tag_name }}"/' ./values.yaml
-        if: github.event_name == 'release'
+        run: sed -i "s/tag: \".*\"/tag: \"${{ steps.tag.outputs.TAG }}\"/" ./values.yaml
 
       - name: Deploy to Kubernetes
         uses: azure/aks-set-context@v1
@@ -44,9 +50,6 @@ jobs:
           creds: ${{ secrets.KUBE_CONFIG }}
           cluster-name: my-cluster
           resource-group: my-resource-group
-        if: github.event_name == 'release'
-
+      
       - name: Helm upgrade
-        run: |
-          helm upgrade --install myapp ./ -f ./values.yaml
-        if: github.event_name == 'release'
+        run: helm upgrade --install myapp ./ -f ./values.yaml
