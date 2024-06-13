@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+  release:
+    types: [created]
 
 jobs:
-  build:
+  update-index:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,12 +20,35 @@ jobs:
           git config --global user.email "you@example.com"
           git config --global user.name "Your Name"
 
-      - name: Update index.html
+      - name: Add SSH Key
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Update index.html with version and tag
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          echo "Version: $GITHUB_SHA" > index.html
+          TAG=${GITHUB_REF##*/}
+          echo "<html><body><h1>Version: $TAG</h1></body></html>" > index.html
+          git add index.html
+          git commit -m "Update index.html with version: $TAG"
+          git push git@github.com:${{ github.repository }}.git HEAD:main
+
+      - name: Update index.html with commit
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "<html><body><h1>Version: $GITHUB_SHA</h1></body></html>" > index.html
           git add index.html
           git commit -m "Update index.html with version: $GITHUB_SHA"
-          git push origin main
+          git push git@github.com:${{ github.repository }}.git HEAD:main
+
+  build:
+    needs: update-index
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
@@ -47,11 +72,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Install Helm
-        uses: azure/setup-helm@v1
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v1
         with:
-          version: "v3.6.2"
+          version: "latest"
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
 
       - name: Deploy with Helm
         run: |
-          helm upgrade --install myapp ./v1.0.0 -f ./v1.0.0/values.yaml
+          helm upgrade --install myapp ./ -f ./values.yaml
