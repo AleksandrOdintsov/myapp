@@ -4,52 +4,55 @@ on:
   push:
     branches:
       - main
-  release:
-    types: [created]
+  create:
+    tags:
+      - v*
 
 jobs:
-  build_and_push_docker_image:
+  build:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'release'
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-
-      - name: Get commit tag
-        id: tag
-        run: echo ::set-output name=TAG::$(git tag --points-at $GITHUB_SHA)
 
       - name: Build Docker image
-        run: docker build -t myapp:${{ steps.tag.outputs.TAG }} .
-      
-      - name: Tag Docker image
-        run: docker tag myapp:${{ steps.tag.outputs.TAG }} myapp:${{ steps.tag.outputs.TAG }}
+        run: |
+          docker build -t myapp:${{ github.ref }} .
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Push Docker image
-        run: docker push myapp:${{ steps.tag.outputs.TAG }}
-
-  update_values_and_deploy:
+  push:
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    needs: build
+    steps:
+      - name: Push Docker image
+        run: |
+          docker tag myapp:${{ github.ref }} ${DOCKER_USERNAME}/myapp:${{ github.ref }}
+          docker push ${DOCKER_USERNAME}/myapp:${{ github.ref }}
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
+  deploy-on-tag:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') # Run this job only for tags starting with 'v'
+    needs: push
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Get commit tag
-        id: tag
-        run: echo ::set-output name=TAG::$(git tag --points-at $GITHUB_SHA)
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v1
+        with:
+          version: "latest"
 
-      - name: Update tag in values.yaml
-        run: sed -i "s/tag: \".*\"/tag: \"${{ steps.tag.outputs.TAG }}\"/" ./values.yaml
+      - name: Update Helm Chart values
+        run: |
+          sed -i "s/tag: '.*'/tag: '${{ github.ref }}'/" ./values.yaml
 
       - name: Deploy to Kubernetes
-        uses: azure/aks-set-context@v1
-        with:
-          creds: ${{ secrets.KUBE_CONFIG }}
-          cluster-name: my-cluster
-          resource-group: my-resource-group
-      
-      - name: Helm upgrade
-        run: helm upgrade --install myapp ./ -f ./values.yaml
+        run: |
+          helm upgrade --install myapp ./ -f ./values.yaml
+        env:
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
