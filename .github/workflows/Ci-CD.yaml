@@ -1,59 +1,44 @@
-name: CI-CD Pipeline
+name: CI/CD
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - "v*.*.*" # Триггер на создание тега, например, v1.0.0
 
 jobs:
-  update-index:
+  build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Get Git tag
-        id: git_tag
-        run: echo "::set-output name=tag::$(git describe --tags --abbrev=0)"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-      - name: Update index.html with version
-        run: |
-          echo "<!DOCTYPE html>
-          <html>
-          <head>
-              <title>My Test App</title>
-          </head>
-          <body>
-              <h1>Welcome to My Test App!</h1>
-              <p>This is a simple static website.</p>
-              <p>Version: ${{ steps.git_tag.outputs.tag }}</p>
-          </body>
-          </html>" > index.html
-
-      - name: Commit changes
-        run: |
-          git config --global user.email "you@example.com"
-          git config --global user.name "Your Name"
-          git add index.html
-          git commit -m "Update index.html with version: ${{ steps.git_tag.outputs.tag }}"
-
-      - name: Push changes
-        uses: ad-m/github-push-action@master
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: main
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-  deploy:
-    needs: update-index
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Extract tag name
+        id: extract-tag
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
-      - name: Install Helm
-        uses: azure/setup-helm@v1
+      - name: Build and push Docker image
+        run: |
+          docker build -t myapp:${{ env.TAG }} .
+          docker tag myapp:${{ env.TAG }} ${DOCKER_USERNAME}/myapp:${{ env.TAG }}
+          docker push ${DOCKER_USERNAME}/myapp:${{ env.TAG }}
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v1
         with:
-          version: "latest"
+          version: "v1.30.2"
 
-      - name: Upgrade Helm Chart
-        run: helm upgrade --install myapp ./ -f ./values.yaml
+      - name: Deploy to Kubernetes
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+          helm upgrade --install myapp ./ -f ./values.yaml --set image.repository=${DOCKER_USERNAME}/myapp --set image.tag=${{ env.TAG }}
