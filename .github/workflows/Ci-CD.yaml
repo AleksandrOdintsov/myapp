@@ -1,44 +1,52 @@
-name: CI/CD
+name: CI/CD Pipeline
 
 on:
   push:
-    tags:
-      - "v*.*.*" # Триггер на создание тега, например, v1.0.0
+    branches:
+      - main
+  release:
+    types: [created]
 
 jobs:
-  build-and-deploy:
+  build_and_deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: docker.io/aleksandrodintsov/myapp
+          tags: latest
+        if: github.event_name == 'push'
 
-      - name: Extract tag name
-        id: extract-tag
-        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-
-      - name: Build and push Docker image
-        run: |
-          docker build -t myapp:${{ env.TAG }} .
-          docker tag myapp:${{ env.TAG }} ${DOCKER_USERNAME}/myapp:${{ env.TAG }}
-          docker push ${DOCKER_USERNAME}/myapp:${{ env.TAG }}
-
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v1
+      - name: Build, tag, and push Docker image on release
+        uses: docker/build-push-action@v2
         with:
-          version: "v1.30.2"
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: docker.io/aleksandrodintsov/myapp
+          tags: v${{ github.event.release.tag_name }}
+        if: github.event_name == 'release'
+
+      - name: Update tag in values.yaml
+        run: |
+          sed -i 's/tag: ".*"/tag: "v${{ github.event.release.tag_name }}"/' ./values.yaml
+        if: github.event_name == 'release'
 
       - name: Deploy to Kubernetes
+        uses: azure/aks-set-context@v1
+        with:
+          creds: ${{ secrets.KUBE_CONFIG }}
+          cluster-name: my-cluster
+          resource-group: my-resource-group
+        if: github.event_name == 'release'
+
+      - name: Helm upgrade
         run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
-          helm upgrade --install myapp ./ -f ./values.yaml --set image.repository=${DOCKER_USERNAME}/myapp --set image.tag=${{ env.TAG }}
+          helm upgrade --install myapp ./ -f ./values.yaml
+        if: github.event_name == 'release'
