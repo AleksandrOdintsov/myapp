@@ -50,7 +50,7 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v1
         with:
-          version: "v3.6.2" # Укажите версию Helm, если нужно
+          version: "v3.6.2"
 
       - name: Deploy with Helm
         run: |
