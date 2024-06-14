@@ -79,4 +79,3 @@ jobs:
 
       - name: Deploy to Kubernetes
         run: helm upgrade --install myapp ./ -f ./values.yaml
-#
