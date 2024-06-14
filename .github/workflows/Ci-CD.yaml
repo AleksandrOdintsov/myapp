@@ -59,7 +59,16 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v1
         with:
-          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+          version: "latest"
+
+      - name: Configure kubectl with Kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+        env:
+          KUBECONFIG: $HOME/.kube/config
+
+      - name: Validate Kubernetes context
+        run: kubectl config current-context
 
       - name: Update values.yaml
         run: |
@@ -67,4 +76,3 @@ jobs:
 
       - name: Deploy to Kubernetes
         run: helm upgrade --install myapp ./ -f ./values.yaml
-#
