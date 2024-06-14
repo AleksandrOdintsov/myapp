@@ -61,9 +61,12 @@ jobs:
         with:
           version: "latest"
 
+      - name: Create .kube directory
+        run: mkdir -p $HOME/.kube
+
       - name: Configure kubectl with Kubeconfig
         run: |
-          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 --decode > $HOME/.kube/config
         env:
           KUBECONFIG: $HOME/.kube/config
 
@@ -76,4 +79,3 @@ jobs:
 
       - name: Deploy to Kubernetes
         run: helm upgrade --install myapp ./ -f ./values.yaml
-#
